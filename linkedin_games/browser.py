@@ -9,8 +9,8 @@ in that browser session.
 from __future__ import annotations
 
 import logging
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from playwright.sync_api import Browser, Page, sync_playwright
 
@@ -53,7 +53,7 @@ def connect_to_chrome(cdp_url: str = CDP_URL) -> Generator[Browser, None, None]:
                 "Make sure Chrome is running with: "
                 "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome "
                 "--remote-debugging-port=9222 "
-                "--user-data-dir=\"$HOME/.chrome-debug-profile\"",
+                '--user-data-dir="$HOME/.chrome-debug-profile"',
                 cdp_url,
             )
             raise SystemExit(1) from exc
@@ -91,9 +91,7 @@ def find_tab(browser: Browser, url_substring: str) -> Page:
     context = browser.contexts[0] if browser.contexts else browser.new_context()
     page = context.new_page()
     full_url = (
-        f"https://www.{url_substring}"
-        if not url_substring.startswith("http")
-        else url_substring
+        f"https://www.{url_substring}" if not url_substring.startswith("http") else url_substring
     )
     page.goto(full_url)
     logger.debug("Navigated new tab to %s", full_url)

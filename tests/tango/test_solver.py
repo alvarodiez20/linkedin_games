@@ -1,7 +1,5 @@
 """Unit tests for the Tango (sun/moon binary puzzle) solver."""
 
-import pytest
-
 from linkedin_games.tango.solver import (
     MOON,
     SUN,
@@ -21,12 +19,12 @@ def _empty_board():
 
 # A fully constrained puzzle that forces a unique solution
 PUZZLE_CONSTRAINED = [
-    [SUN, E,   E,   E,   E,   E],
-    [E,   E,   E,   E,   E,   E],
-    [E,   E,   SUN, E,   E,   E],
-    [E,   E,   E,   MOON,E,   E],
-    [E,   E,   E,   E,   E,   E],
-    [E,   E,   E,   E,   E,   SUN],
+    [SUN, E, E, E, E, E],
+    [E, E, E, E, E, E],
+    [E, E, SUN, E, E, E],
+    [E, E, E, MOON, E, E],
+    [E, E, E, E, E, E],
+    [E, E, E, E, E, SUN],
 ]
 
 NO_CONSTRAINTS: list = []
@@ -44,6 +42,7 @@ class TestSolve:
 
     def test_does_not_mutate_input(self):
         import copy
+
         original = copy.deepcopy(PUZZLE_CONSTRAINED)
         solve(PUZZLE_CONSTRAINED, NO_CONSTRAINTS)
         assert PUZZLE_CONSTRAINED == original
@@ -116,8 +115,8 @@ class TestPropagate:
         board = _empty_board()
         board[0][0] = SUN
         constraints = [
-            ((0, 0), (0, 1), "equal"),   # (0,1) → SUN
-            ((0, 1), (0, 2), "opposite"), # (0,2) → MOON
+            ((0, 0), (0, 1), "equal"),  # (0,1) → SUN
+            ((0, 1), (0, 2), "opposite"),  # (0,2) → MOON
         ]
         _propagate(board, constraints)
         assert board[0][1] == SUN
@@ -157,12 +156,12 @@ class TestValidateSolution:
     def _make_valid_board(self):
         # Alternating pattern satisfying all Tango rules
         return [
-            [SUN,  MOON, SUN,  MOON, SUN,  MOON],
-            [MOON, SUN,  MOON, SUN,  MOON, SUN],
-            [SUN,  MOON, SUN,  MOON, SUN,  MOON],
-            [MOON, SUN,  MOON, SUN,  MOON, SUN],
-            [SUN,  MOON, SUN,  MOON, SUN,  MOON],
-            [MOON, SUN,  MOON, SUN,  MOON, SUN],
+            [SUN, MOON, SUN, MOON, SUN, MOON],
+            [MOON, SUN, MOON, SUN, MOON, SUN],
+            [SUN, MOON, SUN, MOON, SUN, MOON],
+            [MOON, SUN, MOON, SUN, MOON, SUN],
+            [SUN, MOON, SUN, MOON, SUN, MOON],
+            [MOON, SUN, MOON, SUN, MOON, SUN],
         ]
 
     def test_valid_board_returns_true(self):

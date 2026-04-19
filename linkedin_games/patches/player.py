@@ -57,10 +57,7 @@ def play_solution(
     """
     cell_rects = _get_cell_rects(page)
 
-    patches_to_draw = [
-        (i, rect) for i, rect in enumerate(solution)
-        if i not in predrawn_indices
-    ]
+    patches_to_draw = [(i, rect) for i, rect in enumerate(solution) if i not in predrawn_indices]
 
     total = len(patches_to_draw)
     logger.info("Drawing %d patches", total)
@@ -69,9 +66,15 @@ def play_solution(
         _draw_patch(page, rect, cell_rects)
         logger.info(
             "[%d/%d]  Patch %d: (%d,%d)→(%d,%d)  (%d×%d)",
-            idx, total, clue_i,
-            rect.r1 + 1, rect.c1 + 1, rect.r2 + 1, rect.c2 + 1,
-            rect.width, rect.height,
+            idx,
+            total,
+            clue_i,
+            rect.r1 + 1,
+            rect.c1 + 1,
+            rect.r2 + 1,
+            rect.c2 + 1,
+            rect.width,
+            rect.height,
         )
         time.sleep(random.uniform(min_delay, max_delay))
 
@@ -150,9 +153,7 @@ def _get_cell_rects(page: Page) -> list[dict]:
     """)
 
     if len(rects) != GRID_SIZE * GRID_SIZE:
-        logger.error(
-            "Expected %d cell rects, got %d.", GRID_SIZE * GRID_SIZE, len(rects)
-        )
+        logger.error("Expected %d cell rects, got %d.", GRID_SIZE * GRID_SIZE, len(rects))
         raise SystemExit(1)
 
     return rects

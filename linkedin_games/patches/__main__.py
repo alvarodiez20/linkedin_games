@@ -49,7 +49,12 @@ def main() -> None:
             size_str = f", size={clue.size}" if clue.size else ""
             logger.debug(
                 "[%d] (%d,%d)  %s%s  color=%s",
-                i, clue.row + 1, clue.col + 1, clue.shape.value, size_str, clue.color,
+                i,
+                clue.row + 1,
+                clue.col + 1,
+                clue.shape.value,
+                size_str,
+                clue.color,
             )
 
         if state.predrawn:
@@ -74,8 +79,14 @@ def main() -> None:
         for i, rect in enumerate(solution):
             logger.debug(
                 "Patch %d: (%d,%d)→(%d,%d)  %d×%d = %d cells",
-                i, rect.r1 + 1, rect.c1 + 1, rect.r2 + 1, rect.c2 + 1,
-                rect.width, rect.height, rect.area,
+                i,
+                rect.r1 + 1,
+                rect.c1 + 1,
+                rect.r2 + 1,
+                rect.c2 + 1,
+                rect.width,
+                rect.height,
+                rect.area,
             )
 
         # ── Step 3: Play ─────────────────────────────────────────────

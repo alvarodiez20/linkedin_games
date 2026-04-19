@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from linkedin_games.patches.extractor import (
     GRID_SIZE,
@@ -80,9 +79,7 @@ class Rectangle:
             A ``frozenset`` of ``(row, col)`` tuples.
         """
         return frozenset(
-            (r, c)
-            for r in range(self.r1, self.r2 + 1)
-            for c in range(self.c1, self.c2 + 1)
+            (r, c) for r in range(self.r1, self.r2 + 1) for c in range(self.c1, self.c2 + 1)
         )
 
     def contains(self, row: int, col: int) -> bool:
@@ -98,7 +95,7 @@ class Rectangle:
         return self.r1 <= row <= self.r2 and self.c1 <= col <= self.c2
 
 
-def solve(state: PatchesState) -> Optional[list[Rectangle]]:
+def solve(state: PatchesState) -> list[Rectangle] | None:
     """Solve a Patches puzzle.
 
     Pre-computes all valid rectangle candidates for each clue, places any
@@ -115,10 +112,9 @@ def solve(state: PatchesState) -> Optional[list[Rectangle]]:
     n_clues = len(state.clues)
     candidates: list[list[Rectangle]] = [_candidate_rects(clue) for clue in state.clues]
     occupied: set[tuple[int, int]] = set()
-    solution: list[Optional[Rectangle]] = [None] * n_clues
+    solution: list[Rectangle | None] = [None] * n_clues
 
     for region_cells, clue_idx in state.predrawn:
-        clue = state.clues[clue_idx]
         matched = next(
             (rect for rect in candidates[clue_idx] if rect.cells() == region_cells),
             None,
@@ -154,7 +150,7 @@ def _backtrack(
     pos: int,
     candidates: list[list[Rectangle]],
     occupied: set[tuple[int, int]],
-    solution: list[Optional[Rectangle]],
+    solution: list[Rectangle | None],
 ) -> bool:
     """Recursive backtracking core with MRV and forward-checking.
 

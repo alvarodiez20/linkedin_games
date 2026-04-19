@@ -51,10 +51,7 @@ def play_solution(
         max_delay: Maximum random pause between cell interactions, in seconds.
     """
     cells_to_fill = [
-        (r, c)
-        for r in range(GRID_SIZE)
-        for c in range(GRID_SIZE)
-        if not prefilled[r][c]
+        (r, c) for r in range(GRID_SIZE) for c in range(GRID_SIZE) if not prefilled[r][c]
     ]
 
     total = len(cells_to_fill)
@@ -68,13 +65,20 @@ def play_solution(
         current = _read_cell_value(page, cell_idx)
 
         if current == target:
-            logger.debug("[%d/%d] Row %d, Col %d → %s (already set)", idx, total, r + 1, c + 1, sym[target])
+            logger.debug(
+                "[%d/%d] Row %d, Col %d → %s (already set)", idx, total, r + 1, c + 1, sym[target]
+            )
             continue
 
         _set_cell(page, cell_idx, current, target)
         logger.info(
             "[%d/%d]  Row %d, Col %d → %s  (was %s)",
-            idx, total, r + 1, c + 1, sym[target], sym[current],
+            idx,
+            total,
+            r + 1,
+            c + 1,
+            sym[target],
+            sym[current],
         )
         time.sleep(random.uniform(min_delay, max_delay))
 

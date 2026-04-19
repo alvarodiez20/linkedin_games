@@ -22,7 +22,6 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 from playwright.sync_api import Page
 
@@ -58,8 +57,8 @@ class Clue:
     row: int
     col: int
     shape: ShapeConstraint
-    size: Optional[int]
-    color: Optional[str]
+    size: int | None
+    color: str | None
 
     @property
     def cell_idx(self) -> int:
@@ -82,9 +81,7 @@ class PatchesState:
     """
 
     clues: list[Clue] = field(default_factory=list)
-    predrawn: list[tuple[frozenset[tuple[int, int]], int]] = field(
-        default_factory=list
-    )
+    predrawn: list[tuple[frozenset[tuple[int, int]], int]] = field(default_factory=list)
 
 
 _SHAPE_MAP = {
@@ -187,9 +184,7 @@ def extract_state(page: Page) -> PatchesState:
         if clue_idx is not None:
             state.predrawn.append((frozenset(member_cells), clue_idx))
 
-    logger.debug(
-        "Extracted %d clues, %d pre-drawn regions", len(state.clues), len(state.predrawn)
-    )
+    logger.debug("Extracted %d clues, %d pre-drawn regions", len(state.clues), len(state.predrawn))
     if len(state.clues) < 2:
         logger.warning(
             "Very few clues found (%d). Board may not be fully loaded.", len(state.clues)
@@ -221,4 +216,4 @@ def _wait_for_board(page: Page) -> None:
             logger.error(
                 "Board did not load in time (found %d cells, need %d).", count, TOTAL_CELLS
             )
-            raise SystemExit(1)
+            raise SystemExit(1) from None

@@ -1,7 +1,7 @@
 site_name: LinkedIn Games Solver
 site_description: Automated solvers for LinkedIn's daily puzzle games
-repo_url: https://github.com/your-org/linkedin-games
-repo_name: linkedin-games
+repo_url: https://github.com/alvarodiez20/linkedin_games
+repo_name: alvarodiez20/linkedin_games
 
 theme:
   name: material

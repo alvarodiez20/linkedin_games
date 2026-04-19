@@ -1,7 +1,5 @@
 """Unit tests for the 6×6 Mini Sudoku solver."""
 
-import pytest
-
 from linkedin_games.sudoku.solver import (
     _candidates,
     solve,
@@ -51,6 +49,7 @@ class TestSolve:
 
     def test_does_not_mutate_input(self):
         import copy
+
         original = copy.deepcopy(PUZZLE_EASY)
         solve(PUZZLE_EASY)
         assert PUZZLE_EASY == original

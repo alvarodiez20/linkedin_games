@@ -52,9 +52,7 @@ class TangoState:
 
     grid: list[list[int]] = field(default_factory=list)
     prefilled: list[list[bool]] = field(default_factory=list)
-    constraints: list[tuple[tuple[int, int], tuple[int, int], str]] = field(
-        default_factory=list
-    )
+    constraints: list[tuple[tuple[int, int], tuple[int, int], str]] = field(default_factory=list)
 
 
 def extract_state(page: Page) -> TangoState:
@@ -204,4 +202,4 @@ def _wait_for_board(page: Page) -> None:
                 count,
                 GRID_SIZE * GRID_SIZE,
             )
-            raise SystemExit(1)
+            raise SystemExit(1) from None

@@ -51,10 +51,7 @@ def play_solution(
     frame = get_game_frame(page)
 
     cells_to_fill = [
-        (r, c)
-        for r in range(GRID_SIZE)
-        for c in range(GRID_SIZE)
-        if original[r][c] == 0
+        (r, c) for r in range(GRID_SIZE) for c in range(GRID_SIZE) if original[r][c] == 0
     ]
 
     total = len(cells_to_fill)
@@ -84,7 +81,7 @@ def _fill_cell(frame: Frame, cell_idx: int, digit: int) -> None:
         digit: The digit to enter (1–6).
     """
     cell_sel = f'.sudoku-cell[data-cell-idx="{cell_idx}"]'
-    btn_sel = f'.sudoku-input-buttons__numbers .sudoku-input-button:nth-child({digit})'
+    btn_sel = f".sudoku-input-buttons__numbers .sudoku-input-button:nth-child({digit})"
 
     try:
         frame.locator(cell_sel).click(timeout=5000)

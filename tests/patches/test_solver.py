@@ -1,9 +1,13 @@
 """Unit tests for the Patches (Shikaku) solver."""
 
-import pytest
-
 from linkedin_games.patches.extractor import Clue, PatchesState, ShapeConstraint
-from linkedin_games.patches.solver import Rectangle, _candidate_rects, _shape_ok, solve, validate_solution
+from linkedin_games.patches.solver import (
+    Rectangle,
+    _candidate_rects,
+    _shape_ok,
+    solve,
+    validate_solution,
+)
 
 
 def _make_state(*clues: Clue) -> PatchesState:

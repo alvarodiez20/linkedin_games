@@ -49,8 +49,7 @@ def extract_grid(page: Page) -> list[list[int]]:
 
     if not _is_valid_initial_grid(grid):
         logger.error(
-            "Extracted grid failed validation: %s  "
-            "Make sure the game is fully loaded.",
+            "Extracted grid failed validation: %s  Make sure the game is fully loaded.",
             grid,
         )
         raise SystemExit(1)
@@ -146,7 +145,7 @@ def _wait_for_board(frame: Frame) -> None:
                 count,
                 GRID_SIZE * GRID_SIZE,
             )
-            raise SystemExit(1)
+            raise SystemExit(1) from None
 
 
 def _extract(frame: Frame) -> list[list[int]]:
@@ -192,7 +191,7 @@ def _extract(frame: Frame) -> list[list[int]]:
         logger.error("Failed to extract cell values (got %s).", flat)
         raise SystemExit(1)
 
-    return [flat[r * GRID_SIZE: (r + 1) * GRID_SIZE] for r in range(GRID_SIZE)]
+    return [flat[r * GRID_SIZE : (r + 1) * GRID_SIZE] for r in range(GRID_SIZE)]
 
 
 def _is_valid_initial_grid(grid: list[list[int]]) -> bool:

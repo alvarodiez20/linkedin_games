@@ -51,8 +51,8 @@ def setup_logging(
         >>> import logging
         >>> logging.getLogger(__name__).info("ready")
     """
-    resolved_level = (level or os.getenv("LOG_LEVEL", "INFO")).upper()
-    resolved_fmt = fmt or os.getenv("LOG_FORMAT", _DEFAULT_FORMAT)
+    resolved_level = (level or os.getenv("LOG_LEVEL") or "INFO").upper()
+    resolved_fmt = fmt or os.getenv("LOG_FORMAT") or _DEFAULT_FORMAT
     resolved_date_fmt = date_fmt or _DEFAULT_DATE_FORMAT
 
     logging.basicConfig(

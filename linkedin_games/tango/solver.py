@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ VALUES = (SUN, MOON)
 def solve(
     grid: list[list[int]],
     constraints: list[tuple[tuple[int, int], tuple[int, int], str]],
-) -> Optional[list[list[int]]]:
+) -> list[list[int]] | None:
     """Solve a 6×6 Tango puzzle.
 
     Runs constraint propagation on the initial board to derive forced
@@ -93,7 +92,7 @@ def _backtrack(
 def _find_best_empty(
     board: list[list[int]],
     constraints: list[tuple[tuple[int, int], tuple[int, int], str]],
-) -> Optional[tuple[int, int]]:
+) -> tuple[int, int] | None:
     """Return the empty cell with the fewest valid options (MRV heuristic).
 
     Immediately returns on the first cell with 0 candidates (dead end) or
@@ -107,7 +106,7 @@ def _find_best_empty(
         ``(row, col)`` of the best empty cell, or ``None`` when the board is
         fully filled.
     """
-    best: Optional[tuple[int, int]] = None
+    best: tuple[int, int] | None = None
     best_count = 3
 
     for r in range(GRID_SIZE):

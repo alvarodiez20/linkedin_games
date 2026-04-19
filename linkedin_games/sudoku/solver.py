@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ BOX_COLS = 3
 VALID_NUMS = set(range(1, GRID_SIZE + 1))
 
 
-def solve(grid: list[list[int]]) -> Optional[list[list[int]]]:
+def solve(grid: list[list[int]]) -> list[list[int]] | None:
     """Solve a 6×6 Sudoku grid using backtracking with MRV.
 
     The input grid is never mutated — a deep copy is made internally.
@@ -90,7 +89,7 @@ def _backtrack(board: list[list[int]]) -> bool:
     return False
 
 
-def _find_best_empty(board: list[list[int]]) -> Optional[tuple[int, int]]:
+def _find_best_empty(board: list[list[int]]) -> tuple[int, int] | None:
     """Return the empty cell with the fewest legal candidates (MRV heuristic).
 
     Scanning every empty cell and computing its candidate count is O(n³) per
@@ -104,7 +103,7 @@ def _find_best_empty(board: list[list[int]]) -> Optional[tuple[int, int]]:
         ``(row, col)`` of the best empty cell, or ``None`` when the board is
         complete.
     """
-    best: Optional[tuple[int, int]] = None
+    best: tuple[int, int] | None = None
     best_count = GRID_SIZE + 1
 
     for r in range(GRID_SIZE):
@@ -205,9 +204,7 @@ def validate_solution(board: list[list[int]]) -> bool:
     for br in range(0, GRID_SIZE, BOX_ROWS):
         for bc in range(0, GRID_SIZE, BOX_COLS):
             box_vals = {
-                board[r][c]
-                for r in range(br, br + BOX_ROWS)
-                for c in range(bc, bc + BOX_COLS)
+                board[r][c] for r in range(br, br + BOX_ROWS) for c in range(bc, bc + BOX_COLS)
             }
             if box_vals != VALID_NUMS:
                 return False

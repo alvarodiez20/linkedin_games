@@ -13,9 +13,9 @@ import logging
 from linkedin_games._logging import setup_logging
 from linkedin_games.browser import connect_to_chrome, find_tab
 from linkedin_games.config import CDP_URL
-from linkedin_games.tango.extractor import EMPTY, MOON, SUN, extract_state
-from linkedin_games.tango.solver import format_board, solve, validate_solution
+from linkedin_games.tango.extractor import extract_state
 from linkedin_games.tango.player import play_solution
+from linkedin_games.tango.solver import format_board, solve, validate_solution
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +46,17 @@ def main() -> None:
 
         logger.info("Initial board:\n%s", format_board(state.grid))
 
-        sym = {EMPTY: "·", SUN: "☀", MOON: "☽"}
         filled = sum(pf for row in state.prefilled for pf in row)
         logger.info("Pre-filled: %d cells", filled)
         logger.info("Edge constraints: %d", len(state.constraints))
         for (r1, c1), (r2, c2), ctype in state.constraints:
             logger.debug(
                 "  (%d,%d) %s (%d,%d)",
-                r1 + 1, c1 + 1,
+                r1 + 1,
+                c1 + 1,
                 "=" if ctype == "equal" else "×",
-                r2 + 1, c2 + 1,
+                r2 + 1,
+                c2 + 1,
             )
 
         # ── Step 2: Solve ────────────────────────────────────────────
