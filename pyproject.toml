@@ -1,0 +1,14 @@
+[project]
+name = "linkedin-games"
+version = "0.1.0"
+description = "Automated solvers for LinkedIn's daily puzzle games"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.40.0",
+]
+
+[project.scripts]
+sudoku = "linkedin_games.sudoku.__main__:main"
+tango = "linkedin_games.tango.__main__:main"
+patches = "linkedin_games.patches.__main__:main"
