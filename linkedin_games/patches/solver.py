@@ -19,8 +19,6 @@ import logging
 from dataclasses import dataclass
 
 from linkedin_games.patches.extractor import (
-    GRID_SIZE,
-    TOTAL_CELLS,
     Clue,
     PatchesState,
     ShapeConstraint,
@@ -110,7 +108,8 @@ def solve(state: PatchesState) -> list[Rectangle] | None:
         ``state.clues`` — or ``None`` if the puzzle has no solution.
     """
     n_clues = len(state.clues)
-    candidates: list[list[Rectangle]] = [_candidate_rects(clue) for clue in state.clues]
+    grid_size = state.grid_size
+    candidates: list[list[Rectangle]] = [_candidate_rects(clue, grid_size) for clue in state.clues]
     occupied: set[tuple[int, int]] = set()
     solution: list[Rectangle | None] = [None] * n_clues
 
@@ -139,7 +138,7 @@ def solve(state: PatchesState) -> list[Rectangle] | None:
         len(occupied),
     )
 
-    if _backtrack(unsolved, 0, candidates, occupied, solution):
+    if _backtrack(unsolved, 0, candidates, occupied, solution, grid_size * grid_size):
         return solution  # type: ignore[return-value]
 
     return None
@@ -151,6 +150,7 @@ def _backtrack(
     candidates: list[list[Rectangle]],
     occupied: set[tuple[int, int]],
     solution: list[Rectangle | None],
+    total_cells: int,
 ) -> bool:
     """Recursive backtracking core with MRV and forward-checking.
 
@@ -170,7 +170,7 @@ def _backtrack(
         *solution*; ``False`` otherwise.
     """
     if pos == len(unsolved):
-        return len(occupied) == TOTAL_CELLS
+        return len(occupied) == total_cells
 
     # MRV: swap the clue with the fewest candidates to the front
     best_pos = pos
@@ -207,7 +207,7 @@ def _backtrack(
             saved[ci] = old
             candidates[ci] = new
 
-        if feasible and _backtrack(unsolved, pos + 1, candidates, occupied, solution):
+        if feasible and _backtrack(unsolved, pos + 1, candidates, occupied, solution, total_cells):
             return True
 
         for sci, sv in saved.items():
@@ -219,26 +219,27 @@ def _backtrack(
     return False
 
 
-def _candidate_rects(clue: Clue) -> list[Rectangle]:
+def _candidate_rects(clue: Clue, grid_size: int) -> list[Rectangle]:
     """Generate all valid rectangles for a given clue.
 
     A rectangle is valid if:
     - It contains the clue cell.
-    - It fits within the 6×6 grid.
+    - It fits within the grid.
     - Its area equals ``clue.size`` (when specified).
     - Its geometry satisfies ``clue.shape``.
 
     Args:
         clue: The puzzle clue specifying position, shape, and optional size.
+        grid_size: Side length of the grid.
 
     Returns:
         List of all valid ``Rectangle`` objects for this clue.
     """
     rects: list[Rectangle] = []
-    for r1 in range(GRID_SIZE):
-        for c1 in range(GRID_SIZE):
-            for r2 in range(r1, GRID_SIZE):
-                for c2 in range(c1, GRID_SIZE):
+    for r1 in range(grid_size):
+        for c1 in range(grid_size):
+            for r2 in range(r1, grid_size):
+                for c2 in range(c1, grid_size):
                     rect = Rectangle(r1, c1, r2, c2)
                     if not rect.contains(clue.row, clue.col):
                         continue
@@ -271,18 +272,19 @@ def _shape_ok(rect: Rectangle, shape: ShapeConstraint) -> bool:
     return True
 
 
-def format_solution(clues: list[Clue], solution: list[Rectangle]) -> str:
+def format_solution(clues: list[Clue], solution: list[Rectangle], grid_size: int = 6) -> str:
     """Format the solved board as a letter-labelled grid string.
 
     Args:
         clues: The puzzle clue list (length must equal ``len(solution)``).
         solution: One ``Rectangle`` per clue.
+        grid_size: Side length of the grid.
 
     Returns:
         A human-readable multi-line string where each cell shows the letter
         label of the rectangle that covers it.
     """
-    grid = [["·"] * GRID_SIZE for _ in range(GRID_SIZE)]
+    grid = [["·"] * grid_size for _ in range(grid_size)]
     labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"
     for i, rect in enumerate(solution):
         label = labels[i] if i < len(labels) else "?"
@@ -305,6 +307,7 @@ def print_solution(clues: list[Clue], solution: list[Rectangle]) -> None:
 def validate_solution(
     clues: list[Clue],
     solution: list[Rectangle],
+    total_cells: int = 36,
 ) -> bool:
     """Return ``True`` if *solution* is a valid Patches tiling.
 
@@ -313,11 +316,12 @@ def validate_solution(
     - Every rectangle contains its corresponding clue cell.
     - Every rectangle satisfies its shape constraint.
     - Every rectangle has the correct area (when ``clue.size`` is specified).
-    - The rectangles together cover all 36 cells exactly once.
+    - The rectangles together cover all cells exactly once.
 
     Args:
         clues: The puzzle clue list.
         solution: One ``Rectangle`` per clue, in the same order.
+        total_cells: Total number of cells in the grid (grid_size ** 2).
 
     Returns:
         ``True`` if the solution is valid; ``False`` otherwise.
@@ -335,4 +339,4 @@ def validate_solution(
             return False
         if clue.size is not None and rect.area != clue.size:
             return False
-    return len(all_cells) == TOTAL_CELLS
+    return len(all_cells) == total_cells

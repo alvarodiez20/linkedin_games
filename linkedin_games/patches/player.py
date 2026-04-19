@@ -21,7 +21,6 @@ import time
 
 from playwright.sync_api import Page
 
-from linkedin_games.patches.extractor import GRID_SIZE
 from linkedin_games.patches.solver import Rectangle
 
 logger = logging.getLogger(__name__)
@@ -36,6 +35,7 @@ def play_solution(
     clues: list,
     solution: list[Rectangle],
     predrawn_indices: set[int],
+    grid_size: int,
     *,
     min_delay: float = PATCH_DELAY_MIN,
     max_delay: float = PATCH_DELAY_MAX,
@@ -55,7 +55,7 @@ def play_solution(
         min_delay: Minimum random pause between patches, in seconds.
         max_delay: Maximum random pause between patches, in seconds.
     """
-    cell_rects = _get_cell_rects(page)
+    cell_rects = _get_cell_rects(page, grid_size)
 
     patches_to_draw = [(i, rect) for i, rect in enumerate(solution) if i not in predrawn_indices]
 
@@ -63,7 +63,7 @@ def play_solution(
     logger.info("Drawing %d patches", total)
 
     for idx, (clue_i, rect) in enumerate(patches_to_draw, 1):
-        _draw_patch(page, rect, cell_rects)
+        _draw_patch(page, rect, cell_rects, grid_size)
         logger.info(
             "[%d/%d]  Patch %d: (%d,%d)→(%d,%d)  (%d×%d)",
             idx,
@@ -85,6 +85,7 @@ def _draw_patch(
     page: Page,
     rect: Rectangle,
     cell_rects: list[dict],
+    grid_size: int,
 ) -> None:
     """Simulate a mouse drag to draw one rectangular patch.
 
@@ -97,8 +98,8 @@ def _draw_patch(
         rect: The rectangle to draw.
         cell_rects: Pixel coordinates for all 36 cells (indexed by cell_idx).
     """
-    start_idx = rect.r1 * GRID_SIZE + rect.c1
-    end_idx = rect.r2 * GRID_SIZE + rect.c2
+    start_idx = rect.r1 * grid_size + rect.c1
+    end_idx = rect.r2 * grid_size + rect.c2
 
     start = cell_rects[start_idx]
     end = cell_rects[end_idx]
@@ -110,7 +111,7 @@ def _draw_patch(
 
     for r in range(rect.r1, rect.r2 + 1):
         for c in range(rect.c1, rect.c2 + 1):
-            cell_idx = r * GRID_SIZE + c
+            cell_idx = r * grid_size + c
             cr = cell_rects[cell_idx]
             page.mouse.move(cr["cx"], cr["cy"])
             time.sleep(DRAG_STEP_DELAY)
@@ -121,8 +122,8 @@ def _draw_patch(
     time.sleep(0.15)  # wait for the region overlay to render
 
 
-def _get_cell_rects(page: Page) -> list[dict]:
-    """Fetch pixel bounding rectangles for all 36 grid cells.
+def _get_cell_rects(page: Page, grid_size: int) -> list[dict]:
+    """Fetch pixel bounding rectangles for all grid cells.
 
     Runs a single JavaScript evaluation to retrieve bounding client rects for
     every ``[data-cell-idx]`` element, sorted by cell index.
@@ -152,8 +153,8 @@ def _get_cell_rects(page: Page) -> list[dict]:
     })()
     """)
 
-    if len(rects) != GRID_SIZE * GRID_SIZE:
-        logger.error("Expected %d cell rects, got %d.", GRID_SIZE * GRID_SIZE, len(rects))
+    if len(rects) != grid_size * grid_size:
+        logger.error("Expected %d cell rects, got %d.", grid_size * grid_size, len(rects))
         raise SystemExit(1)
 
     return rects

@@ -27,8 +27,6 @@ from playwright.sync_api import Page
 
 logger = logging.getLogger(__name__)
 
-GRID_SIZE = 6
-TOTAL_CELLS = GRID_SIZE * GRID_SIZE
 LOAD_TIMEOUT_MS = 15_000
 
 
@@ -60,14 +58,16 @@ class Clue:
     size: int | None
     color: str | None
 
-    @property
-    def cell_idx(self) -> int:
+    def cell_idx(self, grid_size: int) -> int:
         """Return the zero-based flat cell index for this clue's position.
 
+        Args:
+            grid_size: The side length of the grid.
+
         Returns:
-            ``row * GRID_SIZE + col``.
+            ``row * grid_size + col``.
         """
-        return self.row * GRID_SIZE + self.col
+        return self.row * grid_size + self.col
 
 
 @dataclass
@@ -80,6 +80,7 @@ class PatchesState:
             pairs.  The solver places these first before searching.
     """
 
+    grid_size: int = 6
     clues: list[Clue] = field(default_factory=list)
     predrawn: list[tuple[frozenset[tuple[int, int]], int]] = field(default_factory=list)
 
@@ -112,7 +113,11 @@ def extract_state(page: Page) -> PatchesState:
     js = """
     (() => {
         const cells = document.querySelectorAll('[data-cell-idx]');
-        if (cells.length !== 36) return null;
+        const nCells = cells.length;
+        const gridSize = Math.sqrt(nCells);
+        if (nCells < 16 || !Number.isInteger(gridSize)) {
+            return { error: `Invalid cell count: ${nCells}` };
+        }
 
         const sorted = Array.from(cells).sort(
             (a, b) => parseInt(a.dataset.cellIdx) - parseInt(b.dataset.cellIdx)
@@ -143,24 +148,28 @@ def extract_state(page: Page) -> PatchesState:
             return { idx, shape, clueNum, color, isDrawn, inRegionOf };
         });
 
-        return { cellData };
+        return { cellData, gridSize, nCells };
     })()
     """
 
     result = page.evaluate(js)
 
     if result is None:
-        logger.error("Failed to extract Patches state — board may not be loaded.")
+        logger.error("Failed to extract Patches state — JS evaluation unexpectedly returned null.")
         raise SystemExit(1)
 
-    state = PatchesState()
+    if "error" in result:
+        logger.error("Failed to extract Patches state: %s", result["error"])
+        raise SystemExit(1)
+
+    state = PatchesState(grid_size=int(result["gridSize"]))
     cell_data = result["cellData"]
 
     for cd in cell_data:
         if cd["shape"] is None:
             continue
         idx = cd["idx"]
-        row, col = divmod(idx, GRID_SIZE)
+        row, col = divmod(idx, state.grid_size)
         shape = _SHAPE_MAP.get(cd["shape"], ShapeConstraint.ANY)
         state.clues.append(
             Clue(row=row, col=col, shape=shape, size=cd["clueNum"], color=cd["color"])
@@ -169,7 +178,7 @@ def extract_state(page: Page) -> PatchesState:
     drawn_clue_cells: dict[tuple[int, int], set[tuple[int, int]]] = {}
     for cd in cell_data:
         idx = cd["idx"]
-        row, col = divmod(idx, GRID_SIZE)
+        row, col = divmod(idx, state.grid_size)
         if cd["isDrawn"]:
             drawn_clue_cells.setdefault((row, col), set()).add((row, col))
         if cd["inRegionOf"] is not None:
@@ -194,26 +203,71 @@ def extract_state(page: Page) -> PatchesState:
 
 
 def _wait_for_board(page: Page) -> None:
-    """Wait until the Patches grid cells are present in the DOM.
+    """Wait until the Patches grid is fully rendered in the DOM.
 
-    Tries ``wait_for_selector`` first; falls back to a 3-second sleep and a
-    manual cell-count check.
+    The game's React app may mount the grid container and cell elements before
+    populating the ``data-shape`` attributes that carry the clue information.
+    This function waits for **both** conditions:
+
+    1. At least 16 ``[data-cell-idx]`` cells are present (and count is a perfect square).
+    2. At least one ``[data-shape]`` element exists (clues have rendered).
+
+    A polling loop with a generous timeout ensures the page has time to
+    complete its JavaScript rendering even on slow connections.
 
     Args:
         page: Playwright ``Page`` to poll.
 
     Raises:
-        SystemExit: If fewer than 36 cells are found after the fallback wait.
+        SystemExit: If the board does not fully render within the timeout.
     """
+    poll_interval = 0.5  # seconds between polls
+    max_attempts = int(LOAD_TIMEOUT_MS / 1000 / poll_interval) + 1
+
+    logger.debug("Waiting for board to fully render (up to %ds) …", LOAD_TIMEOUT_MS // 1000)
+
+    # First, wait for at least one cell element to appear in the DOM.
     try:
         page.wait_for_selector("[data-cell-idx]", timeout=LOAD_TIMEOUT_MS)
-        logger.debug("Board ready (wait_for_selector succeeded)")
+        logger.debug("Cell elements detected in the DOM")
     except Exception:
-        logger.warning("wait_for_selector timed out — falling back to sleep poll")
-        time.sleep(3)
-        count = page.evaluate("document.querySelectorAll('[data-cell-idx]').length")
-        if count < TOTAL_CELLS:
-            logger.error(
-                "Board did not load in time (found %d cells, need %d).", count, TOTAL_CELLS
+        logger.error("No cell elements appeared within %ds", LOAD_TIMEOUT_MS // 1000)
+        raise SystemExit(1) from None
+
+    # Then poll until all 36 cells exist AND at least one shape clue has rendered.
+    for attempt in range(1, max_attempts + 1):
+        counts = page.evaluate("""
+        (() => {
+            const cells = document.querySelectorAll('[data-cell-idx]').length;
+            const shapes = document.querySelectorAll('[data-shape]').length;
+            return { cells, shapes };
+        })()
+        """)
+
+        cell_count = counts["cells"]
+        shape_count = counts["shapes"]
+
+        if cell_count >= 16 and int(cell_count**0.5) ** 2 == cell_count and shape_count > 0:
+            logger.debug(
+                "Board ready: %d cells, %d shape clues (attempt %d)",
+                cell_count,
+                shape_count,
+                attempt,
             )
-            raise SystemExit(1) from None
+            return
+
+        logger.debug(
+            "Waiting … cells=%d  shapes=%d  (attempt %d/%d)",
+            cell_count,
+            shape_count,
+            attempt,
+            max_attempts,
+        )
+        time.sleep(poll_interval)
+
+    logger.error(
+        "Board did not fully load in time (found %d cells, %d shapes).",
+        cell_count,
+        shape_count,
+    )
+    raise SystemExit(1)

@@ -9,9 +9,12 @@ from linkedin_games.patches.solver import (
     validate_solution,
 )
 
+GRID_SIZE = 6
+TOTAL_CELLS = GRID_SIZE * GRID_SIZE
 
-def _make_state(*clues: Clue) -> PatchesState:
-    state = PatchesState()
+
+def _make_state(*clues: Clue, grid_size: int = GRID_SIZE) -> PatchesState:
+    state = PatchesState(grid_size=grid_size)
     state.clues = list(clues)
     return state
 
@@ -65,25 +68,31 @@ class TestShapeOk:
 class TestCandidateRects:
     def test_size_2_any_shape(self):
         clue = Clue(row=0, col=0, shape=ShapeConstraint.ANY, size=2, color=None)
-        rects = _candidate_rects(clue)
+        rects = _candidate_rects(clue, GRID_SIZE)
         assert all(r.area == 2 for r in rects)
         assert all(r.contains(0, 0) for r in rects)
 
     def test_square_shape_constraint(self):
         clue = Clue(row=0, col=0, shape=ShapeConstraint.SQUARE, size=None, color=None)
-        rects = _candidate_rects(clue)
+        rects = _candidate_rects(clue, GRID_SIZE)
         assert all(r.width == r.height for r in rects)
 
     def test_vertical_shape_constraint(self):
         clue = Clue(row=0, col=0, shape=ShapeConstraint.VERTICAL_RECT, size=None, color=None)
-        rects = _candidate_rects(clue)
+        rects = _candidate_rects(clue, GRID_SIZE)
         assert all(r.height > r.width for r in rects)
 
     def test_clue_cell_always_contained(self):
         clue = Clue(row=2, col=3, shape=ShapeConstraint.ANY, size=3, color=None)
-        rects = _candidate_rects(clue)
+        rects = _candidate_rects(clue, GRID_SIZE)
         assert all(r.contains(2, 3) for r in rects)
         assert all(r.area == 3 for r in rects)
+
+    def test_larger_grid_size(self):
+        """Candidates respect the grid boundary for a 7×7 grid."""
+        clue = Clue(row=0, col=0, shape=ShapeConstraint.ANY, size=2, color=None)
+        rects = _candidate_rects(clue, 7)
+        assert all(r.r2 < 7 and r.c2 < 7 for r in rects)
 
 
 class TestSolve:
@@ -121,8 +130,6 @@ class TestSolve:
         c1 = Clue(row=0, col=0, shape=ShapeConstraint.ANY, size=36, color=None)
         c2 = Clue(row=0, col=1, shape=ShapeConstraint.ANY, size=36, color=None)
         state = _make_state(c1, c2)
-        # Both need all 36 cells but c2 is at col 1, so no single rectangle can
-        # cover all 36 cells starting from (0,1) — unsolvable
         result = solve(state)
         assert result is None
 
@@ -137,6 +144,14 @@ class TestSolve:
         assert result is not None
         for rect in result:
             assert rect.width == rect.height
+
+    def test_7x7_grid(self):
+        """Solver works for non-6×6 grid sizes (e.g. 7×7)."""
+        c1 = Clue(row=0, col=0, shape=ShapeConstraint.ANY, size=49, color=None)
+        state = _make_state(c1, grid_size=7)
+        result = solve(state)
+        assert result is not None
+        assert result[0] == Rectangle(0, 0, 6, 6)
 
 
 class TestValidateSolution:
@@ -161,3 +176,10 @@ class TestValidateSolution:
         clue = Clue(row=0, col=0, shape=ShapeConstraint.ANY, size=4, color=None)
         rect = Rectangle(0, 0, 0, 5)  # area=6, not 4
         assert validate_solution([clue], [rect]) is False
+
+    def test_wrong_total_cells_fails(self):
+        """validate_solution checks total covered cells against total_cells arg."""
+        clue = Clue(row=0, col=0, shape=ShapeConstraint.ANY, size=36, color=None)
+        rect = Rectangle(0, 0, 5, 5)
+        # pass total_cells=49 (7×7) — 36-cell rect won't cover 49
+        assert validate_solution([clue], [rect], total_cells=49) is False

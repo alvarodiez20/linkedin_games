@@ -93,6 +93,6 @@ def find_tab(browser: Browser, url_substring: str) -> Page:
     full_url = (
         f"https://www.{url_substring}" if not url_substring.startswith("http") else url_substring
     )
-    page.goto(full_url)
+    page.goto(full_url, wait_until="domcontentloaded")
     logger.debug("Navigated new tab to %s", full_url)
     return page

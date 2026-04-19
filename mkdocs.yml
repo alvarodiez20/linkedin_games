@@ -58,6 +58,10 @@ nav:
       - Overview: games/patches/overview.md
       - Algorithm: games/patches/algorithm.md
       - DOM Extraction: games/patches/dom-extraction.md
+    - Queens:
+      - Overview: games/queens/overview.md
+      - Algorithm: games/queens/algorithm.md
+      - DOM Extraction: games/queens/dom-extraction.md
   - Architecture:
     - Overview: architecture/overview.md
     - Browser Automation: architecture/browser-automation.md
@@ -71,6 +75,7 @@ nav:
     - Sudoku: reference/sudoku.md
     - Tango: reference/tango.md
     - Patches: reference/patches.md
+    - Queens: reference/queens.md
 
 markdown_extensions:
   - admonition

@@ -70,11 +70,11 @@ def main() -> None:
             logger.error("No solution found.")
             raise SystemExit(1)
 
-        if not validate_solution(state.clues, solution):
+        if not validate_solution(state.clues, solution, state.grid_size * state.grid_size):
             logger.error("Solver produced an invalid solution!")
             raise SystemExit(1)
 
-        logger.info("Solved board:\n%s", format_solution(state.clues, solution))
+        logger.info("Solved board:\n%s", format_solution(state.clues, solution, state.grid_size))
 
         for i, rect in enumerate(solution):
             logger.debug(
@@ -91,7 +91,7 @@ def main() -> None:
 
         # ── Step 3: Play ─────────────────────────────────────────────
         predrawn_indices = {clue_idx for _, clue_idx in state.predrawn}
-        play_solution(page, state.clues, solution, predrawn_indices)
+        play_solution(page, state.clues, solution, predrawn_indices, state.grid_size)
 
     logger.info("Done! Check the browser to see the result.")
 

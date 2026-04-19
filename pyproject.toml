@@ -25,6 +25,8 @@ docs = [
 sudoku = "linkedin_games.sudoku.__main__:main"
 tango = "linkedin_games.tango.__main__:main"
 patches = "linkedin_games.patches.__main__:main"
+queens = "linkedin_games.queens.__main__:main"
+zip-game = "linkedin_games.zip.__main__:main"
 
 [tool.ruff]
 line-length = 100
