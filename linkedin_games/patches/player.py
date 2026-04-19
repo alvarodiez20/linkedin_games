@@ -1,24 +1,22 @@
 """
 Automated input for LinkedIn Patches.
 
-The Patches game uses a **mouse-drag** interaction:
-  - mouseDown on the start cell → begin drawing
-  - mouseMove through cells (mouseEnter on each) → extend rectangle
-  - mouseUp on the end cell → commit the patch
+Interaction model (mouse drag):
+  - ``mouseDown`` on the start cell begins the drag.
+  - ``mouseMove`` through intermediate cells (triggers ``onMouseEnter``).
+  - ``mouseUp`` on the end cell commits the patch.
 
-The grid container ``[data-testid="interactive-grid"]`` handles:
-  ``onMouseDown``, ``onMouseMove``, ``onMouseUp``, ``onMouseLeave``
+The grid container ``[data-testid="interactive-grid"]`` handles the
+high-level drag events; individual cells fire ``onMouseEnter`` to track
+which cell the pointer is over.
 
-Individual cells fire ``onMouseEnter`` / ``onMouseLeave`` to track
-which cell the pointer is over during the drag.
-
-We use Playwright's low-level ``page.mouse`` to simulate real mouse events.
+Playwright's ``page.mouse`` is used for low-level, pixel-accurate simulation.
 """
 
 from __future__ import annotations
 
+import logging
 import random
-import sys
 import time
 
 from playwright.sync_api import Page
@@ -26,10 +24,11 @@ from playwright.sync_api import Page
 from linkedin_games.patches.extractor import GRID_SIZE
 from linkedin_games.patches.solver import Rectangle
 
-# Delay constants
-DRAG_STEP_DELAY = 0.03   # seconds between cells during drag
-PATCH_DELAY_MIN = 0.30   # minimum delay between patches
-PATCH_DELAY_MAX = 0.60   # maximum delay between patches
+logger = logging.getLogger(__name__)
+
+DRAG_STEP_DELAY = 0.03
+PATCH_DELAY_MIN = 0.30
+PATCH_DELAY_MAX = 0.60
 
 
 def play_solution(
@@ -41,21 +40,21 @@ def play_solution(
     min_delay: float = PATCH_DELAY_MIN,
     max_delay: float = PATCH_DELAY_MAX,
 ) -> None:
-    """
-    Draw each solved patch by simulating a mouse drag.
+    """Draw each solved patch by simulating a mouse drag.
 
-    Parameters
-    ----------
-    page : Page
-        Playwright page connected to the Patches game.
-    clues : list[Clue]
-        The puzzle clues.
-    solution : list[Rectangle]
-        One Rectangle per clue (same order).
-    predrawn_indices : set[int]
-        Indices of clues that are already drawn (skip these).
+    Pre-drawn patches (already on screen) are skipped.  For each remaining
+    patch, a drag is simulated from the top-left cell to the bottom-right cell
+    of its rectangle, passing through all intermediate cells.
+
+    Args:
+        page: Playwright ``Page`` connected to the Patches game.
+        clues: The puzzle clue list.
+        solution: One ``Rectangle`` per clue (same order as *clues*).
+        predrawn_indices: Set of clue indices whose patches are already drawn
+            and should not be touched.
+        min_delay: Minimum random pause between patches, in seconds.
+        max_delay: Maximum random pause between patches, in seconds.
     """
-    # Get cell bounding rects for pixel-accurate dragging
     cell_rects = _get_cell_rects(page)
 
     patches_to_draw = [
@@ -64,18 +63,19 @@ def play_solution(
     ]
 
     total = len(patches_to_draw)
-    print(f"\n🖊️  Drawing {total} patches …")
+    logger.info("Drawing %d patches", total)
 
     for idx, (clue_i, rect) in enumerate(patches_to_draw, 1):
         _draw_patch(page, rect, cell_rects)
-        print(
-            f"   [{idx}/{total}]  Patch {clue_i}: "
-            f"({rect.r1+1},{rect.c1+1})→({rect.r2+1},{rect.c2+1})  "
-            f"({rect.width}×{rect.height})"
+        logger.info(
+            "[%d/%d]  Patch %d: (%d,%d)→(%d,%d)  (%d×%d)",
+            idx, total, clue_i,
+            rect.r1 + 1, rect.c1 + 1, rect.r2 + 1, rect.c2 + 1,
+            rect.width, rect.height,
         )
         time.sleep(random.uniform(min_delay, max_delay))
 
-    print("\n✅  All patches drawn!")
+    logger.info("All %d patches drawn", total)
 
 
 def _draw_patch(
@@ -83,9 +83,16 @@ def _draw_patch(
     rect: Rectangle,
     cell_rects: list[dict],
 ) -> None:
-    """
-    Simulate a mouse drag from the top-left corner cell to the bottom-right
-    corner cell of the rectangle.
+    """Simulate a mouse drag to draw one rectangular patch.
+
+    Moves the mouse to the top-left cell, presses the button, traverses all
+    cells in the rectangle row-by-row to trigger ``onMouseEnter`` events, then
+    releases at the bottom-right cell.
+
+    Args:
+        page: Playwright ``Page`` connected to the Patches game.
+        rect: The rectangle to draw.
+        cell_rects: Pixel coordinates for all 36 cells (indexed by cell_idx).
     """
     start_idx = rect.r1 * GRID_SIZE + rect.c1
     end_idx = rect.r2 * GRID_SIZE + rect.c2
@@ -93,18 +100,11 @@ def _draw_patch(
     start = cell_rects[start_idx]
     end = cell_rects[end_idx]
 
-    sx = start["cx"]
-    sy = start["cy"]
-    ex = end["cx"]
-    ey = end["cy"]
-
-    # Move to start, press, drag to end, release
-    page.mouse.move(sx, sy)
+    page.mouse.move(start["cx"], start["cy"])
     time.sleep(0.05)
     page.mouse.down()
     time.sleep(0.05)
 
-    # Move through intermediate cells row by row to trigger mouseEnter events
     for r in range(rect.r1, rect.r2 + 1):
         for c in range(rect.c1, rect.c2 + 1):
             cell_idx = r * GRID_SIZE + c
@@ -112,17 +112,27 @@ def _draw_patch(
             page.mouse.move(cr["cx"], cr["cy"])
             time.sleep(DRAG_STEP_DELAY)
 
-    # Ensure we're at the exact end position
-    page.mouse.move(ex, ey)
+    page.mouse.move(end["cx"], end["cy"])
     time.sleep(0.05)
     page.mouse.up()
-    time.sleep(0.15)  # wait for region to render
+    time.sleep(0.15)  # wait for the region overlay to render
 
 
 def _get_cell_rects(page: Page) -> list[dict]:
-    """
-    Get pixel coordinates (center, bounds) for all 36 cells.
-    Returns a list indexed by cell_idx (0–35).
+    """Fetch pixel bounding rectangles for all 36 grid cells.
+
+    Runs a single JavaScript evaluation to retrieve bounding client rects for
+    every ``[data-cell-idx]`` element, sorted by cell index.
+
+    Args:
+        page: Playwright ``Page`` connected to the Patches game.
+
+    Returns:
+        A list of 36 dicts, each with keys ``x``, ``y``, ``w``, ``h``,
+        ``cx`` (center-x), ``cy`` (center-y).  Indexed by ``cell_idx`` (0–35).
+
+    Raises:
+        SystemExit: If the query returns an unexpected number of elements.
     """
     rects = page.evaluate("""
     (() => {
@@ -131,10 +141,7 @@ def _get_cell_rects(page: Page) -> list[dict]:
         return cells.map(cell => {
             const r = cell.getBoundingClientRect();
             return {
-                x: r.x,
-                y: r.y,
-                w: r.width,
-                h: r.height,
+                x: r.x, y: r.y, w: r.width, h: r.height,
                 cx: r.x + r.width / 2,
                 cy: r.y + r.height / 2
             };
@@ -143,10 +150,8 @@ def _get_cell_rects(page: Page) -> list[dict]:
     """)
 
     if len(rects) != GRID_SIZE * GRID_SIZE:
-        print(
-            "❌  Expected %d cell rects, got %d."
-            % (GRID_SIZE * GRID_SIZE, len(rects)),
-            file=sys.stderr,
+        logger.error(
+            "Expected %d cell rects, got %d.", GRID_SIZE * GRID_SIZE, len(rects)
         )
         raise SystemExit(1)
 

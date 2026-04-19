@@ -8,50 +8,60 @@ Entry point for the Sudoku solver.
 
 from __future__ import annotations
 
-import sys
+import logging
 
+from linkedin_games._logging import setup_logging
 from linkedin_games.browser import connect_to_chrome, find_tab
+from linkedin_games.config import CDP_URL
 from linkedin_games.sudoku.extractor import extract_grid
-from linkedin_games.sudoku.solver import print_board, solve, validate_solution
 from linkedin_games.sudoku.player import play_solution
+from linkedin_games.sudoku.solver import format_board, solve, validate_solution
 
+logger = logging.getLogger(__name__)
 
 GAME_URL_FRAGMENT = "linkedin.com/games/mini-sudoku"
 
 
 def main() -> None:
-    print("🔗  Connecting to Chrome on localhost:9222 …")
+    """Run the end-to-end Sudoku solver pipeline.
+
+    Connects to Chrome, opens the Sudoku game tab, extracts the puzzle,
+    solves it, validates the solution, then plays it back into the browser.
+
+    Raises:
+        SystemExit: With code ``1`` if no solution is found, if the solver
+            produces an invalid solution, or if the browser connection fails.
+    """
+    setup_logging()
+    logger.info("Connecting to Chrome at %s", CDP_URL)
 
     with connect_to_chrome() as browser:
         page = find_tab(browser, GAME_URL_FRAGMENT)
-        print(f"📄  Found tab: {page.url}\n")
+        logger.info("Found tab: %s", page.url)
 
         # ── Step 1: Extract ──────────────────────────────────────────
-        print("🔍  Extracting grid from the DOM …")
+        logger.info("Extracting grid from the DOM …")
         original = extract_grid(page)
-
-        print("\n📋  Initial board:")
-        print_board(original)
+        logger.info("Initial board:\n%s", format_board(original))
 
         # ── Step 2: Solve ────────────────────────────────────────────
-        print("\n🧠  Solving …")
+        logger.info("Solving …")
         solved = solve(original)
 
         if solved is None:
-            print("❌  No solution found — the extracted grid may be wrong.", file=sys.stderr)
+            logger.error("No solution found — the extracted grid may be wrong.")
             raise SystemExit(1)
 
         if not validate_solution(solved):
-            print("❌  Solver produced an invalid solution!", file=sys.stderr)
+            logger.error("Solver produced an invalid solution!")
             raise SystemExit(1)
 
-        print("\n✅  Solved board:")
-        print_board(solved)
+        logger.info("Solved board:\n%s", format_board(solved))
 
         # ── Step 3: Play ─────────────────────────────────────────────
         play_solution(page, original, solved)
 
-    print("\n🎉  Done! Check the browser to see the result.")
+    logger.info("Done! Check the browser to see the result.")
 
 
 if __name__ == "__main__":
