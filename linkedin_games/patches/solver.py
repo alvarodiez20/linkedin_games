@@ -15,8 +15,8 @@ Rules:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from linkedin_games.patches.extractor import (
     GRID_SIZE,
@@ -26,10 +26,20 @@ from linkedin_games.patches.extractor import (
     ShapeConstraint,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class Rectangle:
-    """Axis-aligned rectangle: top-left (r1,c1) to bottom-right (r2,c2) inclusive."""
+    """Axis-aligned rectangle from top-left ``(r1, c1)`` to bottom-right ``(r2, c2)`` inclusive.
+
+    Attributes:
+        r1: Top row index (0-based).
+        c1: Left column index (0-based).
+        r2: Bottom row index (0-based, inclusive).
+        c2: Right column index (0-based, inclusive).
+    """
+
     r1: int
     c1: int
     r2: int
@@ -37,75 +47,97 @@ class Rectangle:
 
     @property
     def width(self) -> int:
+        """Number of columns spanned by this rectangle.
+
+        Returns:
+            ``c2 - c1 + 1``.
+        """
         return self.c2 - self.c1 + 1
 
     @property
     def height(self) -> int:
+        """Number of rows spanned by this rectangle.
+
+        Returns:
+            ``r2 - r1 + 1``.
+        """
         return self.r2 - self.r1 + 1
 
     @property
     def area(self) -> int:
+        """Total cell count of this rectangle.
+
+        Returns:
+            ``width * height``.
+        """
         return self.width * self.height
 
     def cells(self) -> frozenset[tuple[int, int]]:
+        """Return the set of all ``(row, col)`` pairs covered by this rectangle.
+
+        Returns:
+            A ``frozenset`` of ``(row, col)`` tuples.
+        """
         return frozenset(
-            (r, c)
-            for r in range(self.r1, self.r2 + 1)
-            for c in range(self.c1, self.c2 + 1)
+            (r, c) for r in range(self.r1, self.r2 + 1) for c in range(self.c1, self.c2 + 1)
         )
 
     def contains(self, row: int, col: int) -> bool:
+        """Return ``True`` if cell ``(row, col)`` is inside this rectangle.
+
+        Args:
+            row: Row index to test (0-based).
+            col: Column index to test (0-based).
+
+        Returns:
+            ``True`` if the cell is within the rectangle's bounds.
+        """
         return self.r1 <= row <= self.r2 and self.c1 <= col <= self.c2
 
 
-def solve(state: PatchesState) -> Optional[list[Rectangle]]:
-    """
-    Solve a Patches puzzle.
+def solve(state: PatchesState) -> list[Rectangle] | None:
+    """Solve a Patches puzzle.
 
-    Returns a list of Rectangles (one per clue, same order as ``state.clues``)
-    or ``None`` if unsolvable.
+    Pre-computes all valid rectangle candidates for each clue, places any
+    pre-drawn regions first, then runs backtracking with MRV and forward-
+    checking to find a complete non-overlapping tiling of the 6×6 grid.
+
+    Args:
+        state: The extracted puzzle state (clues + pre-drawn regions).
+
+    Returns:
+        A list of ``Rectangle`` objects — one per clue, in the same order as
+        ``state.clues`` — or ``None`` if the puzzle has no solution.
     """
     n_clues = len(state.clues)
-
-    # Pre-compute candidates for each clue
-    candidates: list[list[Rectangle]] = []
-    for clue in state.clues:
-        candidates.append(_candidate_rects(clue))
-
-    # Occupied grid: set of (row, col) already filled
+    candidates: list[list[Rectangle]] = [_candidate_rects(clue) for clue in state.clues]
     occupied: set[tuple[int, int]] = set()
+    solution: list[Rectangle | None] = [None] * n_clues
 
-    # Solution: clue_idx → Rectangle
-    solution: list[Optional[Rectangle]] = [None] * n_clues
-
-    # Place pre-drawn regions first
     for region_cells, clue_idx in state.predrawn:
-        clue = state.clues[clue_idx]
-        # Find the matching rectangle candidate
-        matched = False
-        for rect in candidates[clue_idx]:
-            if rect.cells() == region_cells:
-                solution[clue_idx] = rect
-                occupied.update(region_cells)
-                matched = True
-                break
-        if not matched:
-            # Pre-drawn region doesn't match any candidate.
-            # Force it: build a bounding-box rect from the cells.
+        matched = next(
+            (rect for rect in candidates[clue_idx] if rect.cells() == region_cells),
+            None,
+        )
+        if matched:
+            solution[clue_idx] = matched
+            occupied.update(region_cells)
+        else:
             rows = [r for r, c in region_cells]
             cols = [c for r, c in region_cells]
             rect = Rectangle(min(rows), min(cols), max(rows), max(cols))
             solution[clue_idx] = rect
             occupied.update(region_cells)
 
-    # Remaining clues to solve
     unsolved = [i for i in range(n_clues) if solution[i] is None]
-
-    # Filter candidates against currently occupied cells
     for i in unsolved:
-        candidates[i] = [
-            r for r in candidates[i] if not r.cells() & occupied
-        ]
+        candidates[i] = [r for r in candidates[i] if not r.cells() & occupied]
+
+    logger.debug(
+        "Starting backtrack: %d clues to solve, %d cells pre-occupied",
+        len(unsolved),
+        len(occupied),
+    )
 
     if _backtrack(unsolved, 0, candidates, occupied, solution):
         return solution  # type: ignore[return-value]
@@ -118,12 +150,29 @@ def _backtrack(
     pos: int,
     candidates: list[list[Rectangle]],
     occupied: set[tuple[int, int]],
-    solution: list[Optional[Rectangle]],
+    solution: list[Rectangle | None],
 ) -> bool:
+    """Recursive backtracking core with MRV and forward-checking.
+
+    At each step, selects the unsolved clue with the fewest remaining
+    candidate rectangles (MRV), tries each one, prunes remaining candidates
+    with forward-checking, and recurses.  Backtracks on failure.
+
+    Args:
+        unsolved: List of unsolved clue indices in the current search order.
+        pos: Current position in *unsolved* — indices before *pos* are solved.
+        candidates: Per-clue list of still-viable rectangle options.
+        occupied: Set of ``(row, col)`` cells already covered.
+        solution: Partial solution array, indexed by clue index.
+
+    Returns:
+        ``True`` if a complete valid tiling was found and written into
+        *solution*; ``False`` otherwise.
+    """
     if pos == len(unsolved):
         return len(occupied) == TOTAL_CELLS
 
-    # MRV: pick the unsolved clue with fewest remaining candidates
+    # MRV: swap the clue with the fewest candidates to the front
     best_pos = pos
     best_count = len(candidates[unsolved[pos]])
     for p in range(pos + 1, len(unsolved)):
@@ -131,24 +180,19 @@ def _backtrack(
         if c < best_count:
             best_count = c
             best_pos = p
-
-    # Swap to front
     unsolved[pos], unsolved[best_pos] = unsolved[best_pos], unsolved[pos]
 
     clue_idx = unsolved[pos]
 
     for rect in candidates[clue_idx]:
         cells = rect.cells()
-
-        # Check no overlap
         if cells & occupied:
             continue
 
-        # Place
         solution[clue_idx] = rect
         occupied.update(cells)
 
-        # Forward-check: prune candidates for remaining clues
+        # Forward-checking: prune candidates for all remaining clues
         saved: dict[int, list[Rectangle]] = {}
         feasible = True
         for p in range(pos + 1, len(unsolved)):
@@ -157,7 +201,6 @@ def _backtrack(
             new = [r for r in old if not r.cells() & occupied]
             if not new:
                 feasible = False
-                # Restore already-pruned
                 for sci, sv in saved.items():
                     candidates[sci] = sv
                 break
@@ -167,58 +210,56 @@ def _backtrack(
         if feasible and _backtrack(unsolved, pos + 1, candidates, occupied, solution):
             return True
 
-        # Undo
         for sci, sv in saved.items():
             candidates[sci] = sv
         occupied.difference_update(cells)
         solution[clue_idx] = None
 
-    # Swap back
     unsolved[pos], unsolved[best_pos] = unsolved[best_pos], unsolved[pos]
     return False
 
 
 def _candidate_rects(clue: Clue) -> list[Rectangle]:
-    """
-    Generate all valid rectangles for a clue.
+    """Generate all valid rectangles for a given clue.
 
-    A valid rectangle:
-      - Contains the clue cell (row, col)
-      - Fits within the 6×6 grid
-      - Satisfies the shape constraint
-      - If size is given, has area == size
+    A rectangle is valid if:
+    - It contains the clue cell.
+    - It fits within the 6×6 grid.
+    - Its area equals ``clue.size`` (when specified).
+    - Its geometry satisfies ``clue.shape``.
+
+    Args:
+        clue: The puzzle clue specifying position, shape, and optional size.
+
+    Returns:
+        List of all valid ``Rectangle`` objects for this clue.
     """
     rects: list[Rectangle] = []
-
     for r1 in range(GRID_SIZE):
         for c1 in range(GRID_SIZE):
             for r2 in range(r1, GRID_SIZE):
                 for c2 in range(c1, GRID_SIZE):
                     rect = Rectangle(r1, c1, r2, c2)
-
-                    # Must contain the clue cell
                     if not rect.contains(clue.row, clue.col):
                         continue
-
-                    # Check size constraint
                     if clue.size is not None and rect.area != clue.size:
                         continue
-
-                    # Minimum area of 1
-                    if rect.area < 1:
-                        continue
-
-                    # Check shape constraint
                     if not _shape_ok(rect, clue.shape):
                         continue
-
                     rects.append(rect)
-
     return rects
 
 
 def _shape_ok(rect: Rectangle, shape: ShapeConstraint) -> bool:
-    """Check if a rectangle satisfies the shape constraint."""
+    """Return ``True`` if *rect* satisfies the given shape constraint.
+
+    Args:
+        rect: The rectangle to test.
+        shape: The required geometric relationship between width and height.
+
+    Returns:
+        ``True`` if the shape constraint is satisfied.
+    """
     if shape == ShapeConstraint.ANY:
         return True
     if shape == ShapeConstraint.SQUARE:
@@ -230,56 +271,68 @@ def _shape_ok(rect: Rectangle, shape: ShapeConstraint) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
-# Utilities
-# ---------------------------------------------------------------------------
+def format_solution(clues: list[Clue], solution: list[Rectangle]) -> str:
+    """Format the solved board as a letter-labelled grid string.
 
-def print_solution(clues: list[Clue], solution: list[Rectangle]) -> None:
-    """Pretty-print the solved board with letter labels for each patch."""
+    Args:
+        clues: The puzzle clue list (length must equal ``len(solution)``).
+        solution: One ``Rectangle`` per clue.
+
+    Returns:
+        A human-readable multi-line string where each cell shows the letter
+        label of the rectangle that covers it.
+    """
     grid = [["·"] * GRID_SIZE for _ in range(GRID_SIZE)]
     labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"
-
     for i, rect in enumerate(solution):
         label = labels[i] if i < len(labels) else "?"
         for r in range(rect.r1, rect.r2 + 1):
             for c in range(rect.c1, rect.c2 + 1):
                 grid[r][c] = label
+    return "\n".join(" ".join(row) for row in grid)
 
-    for row in grid:
-        print(" ".join(row))
+
+def print_solution(clues: list[Clue], solution: list[Rectangle]) -> None:
+    """Log the solved board at INFO level using letter labels.
+
+    Args:
+        clues: The puzzle clue list.
+        solution: One ``Rectangle`` per clue.
+    """
+    logger.info("Solution:\n%s", format_solution(clues, solution))
 
 
 def validate_solution(
     clues: list[Clue],
     solution: list[Rectangle],
 ) -> bool:
-    """Check that a solution is valid: full coverage, no overlap, constraints met."""
-    all_cells: set[tuple[int, int]] = set()
+    """Return ``True`` if *solution* is a valid Patches tiling.
 
+    Checks:
+    - No two rectangles overlap.
+    - Every rectangle contains its corresponding clue cell.
+    - Every rectangle satisfies its shape constraint.
+    - Every rectangle has the correct area (when ``clue.size`` is specified).
+    - The rectangles together cover all 36 cells exactly once.
+
+    Args:
+        clues: The puzzle clue list.
+        solution: One ``Rectangle`` per clue, in the same order.
+
+    Returns:
+        ``True`` if the solution is valid; ``False`` otherwise.
+    """
+    all_cells: set[tuple[int, int]] = set()
     for i, rect in enumerate(solution):
         cells = rect.cells()
-
-        # Check overlap
-        overlap = cells & all_cells
-        if overlap:
+        if cells & all_cells:
             return False
         all_cells.update(cells)
-
-        # Check clue is inside
         clue = clues[i]
         if not rect.contains(clue.row, clue.col):
             return False
-
-        # Check shape
         if not _shape_ok(rect, clue.shape):
             return False
-
-        # Check size
         if clue.size is not None and rect.area != clue.size:
             return False
-
-    # Check full coverage
-    if len(all_cells) != TOTAL_CELLS:
-        return False
-
-    return True
+    return len(all_cells) == TOTAL_CELLS

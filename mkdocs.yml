@@ -1,0 +1,97 @@
+site_name: LinkedIn Games Solver
+site_description: Automated solvers for LinkedIn's daily puzzle games
+repo_url: https://github.com/alvarodiez20/linkedin_games
+repo_name: alvarodiez20/linkedin_games
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            docstring_style: google
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Browser Setup: getting-started/browser-setup.md
+    - Quickstart: getting-started/quickstart.md
+  - Games:
+    - Overview: games/index.md
+    - Mini Sudoku:
+      - Overview: games/sudoku/overview.md
+      - Algorithm: games/sudoku/algorithm.md
+      - DOM Extraction: games/sudoku/dom-extraction.md
+    - Tango:
+      - Overview: games/tango/overview.md
+      - Algorithm: games/tango/algorithm.md
+      - DOM Extraction: games/tango/dom-extraction.md
+    - Patches:
+      - Overview: games/patches/overview.md
+      - Algorithm: games/patches/algorithm.md
+      - DOM Extraction: games/patches/dom-extraction.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Browser Automation: architecture/browser-automation.md
+    - Adding a Game: architecture/adding-a-game.md
+  - Development:
+    - Setup: development/setup.md
+    - Testing: development/testing.md
+    - Contributing: development/contributing.md
+    - Changelog: development/changelog.md
+  - API Reference:
+    - Sudoku: reference/sudoku.md
+    - Tango: reference/tango.md
+    - Patches: reference/patches.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
