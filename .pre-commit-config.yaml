@@ -22,16 +22,16 @@ repos:
       # --- push-stage: slower checks that mirror CI exactly ---
       - id: pytest
         name: pytest
-        entry: uv run pytest
+        entry: uv run --extra dev pytest
         args: [--cov=linkedin_games, --cov-report=term-missing]
         language: system
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-commit]
 
       - id: mkdocs-build
         name: mkdocs-build
-        entry: uv run mkdocs build
-        args: [--strict]
+        entry: uv run --extra docs mkdocs
+        args: [build, --strict]
         language: system
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-commit]
